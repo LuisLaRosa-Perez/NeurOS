@@ -10,16 +10,41 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\User; // Added for completion check
 
 class RecreacionResource extends Resource
 {
     protected static ?string $model = Task::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-puzzle-piece';
-    protected static ?string $navigationLabel = 'Recreación';
-    protected static ?string $modelLabel = 'Tarea de Recreación';
-    protected static ?string $pluralModelLabel = 'Tareas de Recreación';
+    protected static ?string $navigationIcon = 'heroicon-o-cube'; // Changed icon
+    protected static ?string $navigationLabel = 'Juegos de Recreación'; // Changed label
+    protected static ?string $modelLabel = 'Juego de Recreación'; // Changed label
+    protected static ?string $pluralModelLabel = 'Juegos de Recreación'; // Changed label
     protected static ?string $navigationGroup = 'Gestion de tareas';
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        // Get total number of children with 'hijo' role
+        $totalChildren = User::role('hijo')->count();
+
+        // Get total number of published tasks
+        $totalPublishedTasks = Task::where('is_published', true)->count();
+
+        // If there are no children or no published tasks, the condition is met (or not applicable)
+        // We assume if there are no children or no published tasks, recreation is always available.
+        // Adjust this logic if a stricter interpretation is needed.
+        if ($totalChildren === 0 || $totalPublishedTasks === 0) {
+            return true;
+        }
+
+        // Check if all published tasks have been completed by all children
+        // This means, for every published task, its completion percentage must be 100%
+        $allTasksCompletedByAllChildren = Task::where('is_published', true)
+            ->get()
+            ->every(fn (Task $task) => $task->completion_percentage >= 100); // Use >= 100 for floating point comparison safety
+
+        return $allTasksCompletedByAllChildren;
+    }
 
     public static function getEloquentQuery(): Builder
     {
@@ -31,10 +56,16 @@ class RecreacionResource extends Resource
         return $form
             ->schema([
                 Forms\Components\TextInput::make('name')
-                    ->label('Nombre')
-                    ->required(),
-                Forms\Components\Textarea::make('description')
-                    ->label('Descripción')
+                    ->label('Nombre del Juego')
+                    ->required()
+                    ->columnSpanFull(),
+                Forms\Components\TextInput::make('game_link')
+                    ->label('Enlace del Juego (URL)')
+                    ->required()
+                    ->url() // Validate as URL
+                    ->columnSpanFull(),
+                Forms\Components\RichEditor::make('description')
+                    ->label('Instrucciones del Juego')
                     ->columnSpanFull(),
                 Forms\Components\Toggle::make('is_published')
                     ->label('Publicada')
@@ -47,7 +78,12 @@ class RecreacionResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('name')
-                    ->label('Nombre')
+                    ->label('Nombre del Juego')
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('game_link')
+                    ->label('Enlace del Juego')
+                    ->url(fn (Task $record): ?string => $record->game_link) // Pass the URL
+                    ->openUrlInNewTab()
                     ->searchable(),
                 Tables\Columns\IconColumn::make('is_published')
                     ->label('Publicada')

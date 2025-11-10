@@ -14,7 +14,8 @@ class Task extends Model
         'description',
         'category',
         'questions',
-        'is_published', // New field
+        'game_link', // New field
+        'is_published',
     ];
 
     protected $casts = [
