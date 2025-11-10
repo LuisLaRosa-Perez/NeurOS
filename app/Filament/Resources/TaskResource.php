@@ -18,6 +18,8 @@ class TaskResource extends Resource
 {
     protected static ?string $model = Task::class;
 
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
 
     protected static ?string $navigationLabel = 'Tareas';

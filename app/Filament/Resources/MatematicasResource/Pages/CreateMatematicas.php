@@ -9,4 +9,11 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateMatematicas extends CreateRecord
 {
     protected static string $resource = MatematicasResource::class;
+
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $data['category'] = 'matematicas';
+
+        return $data;
+    }
 }

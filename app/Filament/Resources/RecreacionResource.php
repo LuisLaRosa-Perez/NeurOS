@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\MatematicasResource\Pages;
+use App\Filament\Resources\RecreacionResource\Pages;
 use App\Models\Task;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -11,19 +11,19 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
-class MatematicasResource extends Resource
+class RecreacionResource extends Resource
 {
     protected static ?string $model = Task::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-calculator';
-    protected static ?string $navigationLabel = 'Matemáticas';
-    protected static ?string $modelLabel = 'Tarea de Matemáticas';
-    protected static ?string $pluralModelLabel = 'Tareas de Matemáticas';
+    protected static ?string $navigationIcon = 'heroicon-o-puzzle-piece';
+    protected static ?string $navigationLabel = 'Recreación';
+    protected static ?string $modelLabel = 'Tarea de Recreación';
+    protected static ?string $pluralModelLabel = 'Tareas de Recreación';
     protected static ?string $navigationGroup = 'Gestion de tareas';
 
     public static function getEloquentQuery(): Builder
     {
-        return parent::getEloquentQuery()->where('category', 'matematicas');
+        return parent::getEloquentQuery()->where('category', 'recreacion');
     }
 
     public static function form(Form $form): Form
@@ -84,9 +84,9 @@ class MatematicasResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListMatematicas::route('/'),
-            'create' => Pages\CreateMatematicas::route('/create'),
-            'edit' => Pages\EditMatematicas::route('/{record}/edit'),
+            'index' => Pages\ListRecreacions::route('/'),
+            'create' => Pages\CreateRecreacion::route('/create'),
+            'edit' => Pages\EditRecreacion::route('/{record}/edit'),
         ];
     }
 }

@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Task extends Model
 {
@@ -11,12 +13,41 @@ class Task extends Model
         'name',
         'description',
         'category',
-        'is_completed',
-        'child_id',
+        'questions',
+        'is_published', // New field
     ];
 
-    public function child(): BelongsTo
+    protected $casts = [
+        'questions' => 'array',
+        'is_published' => 'boolean', // Cast new field
+    ];
+
+    // Relationship to track individual child completions
+    public function completions(): HasMany
     {
-        return $this->belongsTo(User::class, 'child_id');
+        return $this->hasMany(TaskCompletion::class);
+    }
+
+    // Relationship to get all children associated with this task
+    public function children(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'task_completions', 'task_id', 'user_id')
+                    ->withPivot('completed_at')
+                    ->withTimestamps();
+    }
+
+    // Accessor to calculate completion percentage
+    public function getCompletionPercentageAttribute(): float
+    {
+        // Assuming 'hijo' role users are the target audience for tasks
+        $totalChildren = User::role('hijo')->count();
+
+        if ($totalChildren === 0) {
+            return 0.0;
+        }
+
+        $completedChildren = $this->completions()->whereNotNull('completed_at')->count();
+
+        return ($completedChildren / $totalChildren) * 100;
     }
 }
