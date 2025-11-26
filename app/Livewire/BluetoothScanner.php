@@ -28,11 +28,17 @@ class BluetoothScanner extends Component
         $this->dispatch('stop-bluetooth-scan');
     }
 
-    // This method will be called from JavaScript with the found devices
-    public function updateDevices($devices)
+    // This method will be called from JavaScript with the found device
+    public function addDevice($device)
     {
-        $this->devices = $devices;
-        $this->scanActive = false; // Assuming scan finishes after finding devices or manually stopped
+        // Check if the device is already in the list
+        $existingDevice = collect($this->devices)->firstWhere('id', $device['id']);
+
+        if (!$existingDevice) {
+            $this->devices[] = $device;
+        }
+        
+        $this->scanActive = false; // Scan is complete after a device is selected
     }
 
     // This method will be called from JavaScript when a device is connected

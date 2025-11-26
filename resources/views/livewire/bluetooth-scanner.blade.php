@@ -1,36 +1,92 @@
 <div>
-    <h2 class="text-xl font-semibold mb-4">Escáner de Pulseras Activas Bluetooth</h2>
+
 
     @if ($connectedDevice)
         <div class="p-4 bg-green-100 border border-green-400 text-green-700 rounded-md mb-4">
             <p class="font-bold">Dispositivo Conectado:</p>
             <p>{{ $connectedDevice['name'] ?? 'Dispositivo Desconocido' }} (ID: {{ $connectedDevice['id'] }})</p>
-            <button wire:click="disconnect" class="mt-2 filament-button filament-button-danger text-sm">Desconectar</button>
+            <x-filament::button
+                wire:click="disconnect"
+                color="danger"
+                size="sm"
+                class="mt-2"
+            >
+                Desconectar
+            </x-filament::button>
         </div>
     @else
-        <button wire:click="startScan" wire:loading.attr="disabled" class="filament-button bg-orange-500 text-white hover:bg-orange-600 focus:ring-orange-500">
-            <span wire:loading.remove>Escanear Dispositivos Bluetooth</span>
-            <span wire:loading>Escaneando...</span>
-        </button>
+        <x-filament::button
+            wire:click="startScan"
+            wire:loading.attr="disabled"
+            color="warning"
+        >
+            <span wire:loading.remove wire:target="startScan">
+                Escanear Dispositivos Bluetooth
+            </span>
+            <span wire:loading wire:target="startScan">
+                Escaneando...
+            </span>
+        </x-filament::button>
 
         @if ($scanActive)
-            <p class="mt-2 text-gray-500 text-center">Buscando dispositivos...</p>
+            <div class="fi-ta-empty-state px-6 py-12">
+                <div class="fi-ta-empty-state-icon-ctn mb-4 flex justify-center">
+                     <x-filament::loading-indicator class="h-8 w-8 text-gray-500" />
+                </div>
+                <h4 class="fi-ta-empty-state-heading text-base font-semibold leading-6 text-gray-950 dark:text-white">
+                    Buscando dispositivos...
+                </h4>
+                <p class="fi-ta-empty-state-description text-sm text-gray-500 dark:text-gray-400">
+                    Por favor, selecciona un dispositivo desde la ventana del navegador.
+                </p>
+            </div>
         @endif
 
         @if (count($devices) > 0)
-            <h3 class="text-lg font-medium mt-4">Dispositivos Encontrados:</h3>
-            <ul class="mt-2 space-y-2">
-                @foreach ($devices as $device)
-                    <li class="flex items-center justify-between p-3 bg-gray-100 rounded-md">
-                        <span>{{ $device['name'] ?? 'Dispositivo Desconocido' }} (ID: {{ $device['id'] }})</span>
-                        <button class="filament-button filament-button-secondary text-sm" onclick="connectToDevice('{{ $device['id'] }}')">Conectar</button>
-                    </li>
-                @endforeach
-            </ul>
+            <h3 class="text-lg font-medium mt-6 mb-2">Dispositivos Encontrados:</h3>
+            <div class="fi-ta overflow-hidden border border-gray-200 dark:border-white/10 rounded-xl">
+                <table class="fi-ta-table w-full table-auto divide-y divide-gray-200 text-start dark:divide-white/5">
+                    <thead class="bg-gray-50 dark:bg-white/5">
+                        <tr class="fi-ta-header-row">
+                            <th class="fi-ta-header-cell px-3 py-2 text-sm font-medium text-gray-900 dark:text-white text-left">
+                                Dispositivo
+                            </th>
+                            <th class="fi-ta-header-cell px-3 py-2 text-sm font-medium text-gray-900 dark:text-white text-left">
+                                ID
+                            </th>
+                            <th class="fi-ta-header-cell px-3 py-2 text-sm font-medium text-gray-900 dark:text-white text-end">
+                                Acción
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-white/5">
+                        @foreach ($devices as $device)
+                            <tr class="fi-ta-row">
+                                <td class="fi-ta-cell p-3">
+                                    <span class="font-medium">{{ $device['name'] ?? 'Dispositivo Desconocido' }}</span>
+                                </td>
+                                <td class="fi-ta-cell p-3 text-xs text-gray-500 dark:text-gray-400">
+                                    {{ $device['id'] }}
+                                </td>
+                                <td class="fi-ta-cell p-3 text-end" x-data="{}">
+                                    <x-filament::button
+                                        color="warning"
+                                        size="sm"
+                                        x-on:click="connectToDevice('{{ $device['id'] }}')"
+                                    >
+                                        Conectar
+                                    </x-filament::button>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+
         @elseif (!$scanActive && count($devices) === 0)
-            <div class="mt-4 p-4 text-center text-gray-500 bg-gray-50 rounded-md">
-                <p>No se encontraron dispositivos.</p>
-                <p class="text-sm mt-1">Asegúrate de que tu pulsera Bluetooth esté encendida y visible.</p>
+            <div class="p-4 text-center text-gray-500 bg-gray-50 rounded-md dark:bg-gray-800 dark:text-gray-400">
+                <p>No se han encontrado dispositivos previamente.</p>
+                <p class="text-sm mt-1">Usa el botón de escaneo para encontrar una pulsera Bluetooth.</p>
             </div>
         @endif
     @endif
@@ -43,15 +99,12 @@
 
             @this.on('start-bluetooth-scan', async () => {
                 try {
-                    @this.set('devices', []); // Clear previous devices
                     @this.set('scanActive', true);
 
-                    // Add a timeout for the scan
                     const scanTimeout = setTimeout(() => {
                         if (@this.get('scanActive')) {
                             console.warn('Escaneo de Bluetooth ha excedido el tiempo de espera.');
                             @this.set('scanActive', false);
-                            // Do not clear devices here, user might want to try connecting to previously found ones
                         }
                     }, 15000); // 15 seconds timeout
 
@@ -63,17 +116,16 @@
                     }
 
                     const device = await navigator.bluetooth.requestDevice({
-                        //filters: [{ services: ['heart_rate'] }], // Example: Filter for heart rate service
-                        acceptAllDevices: true, // Or accept all devices
-                        optionalServices: ['battery_service', 'heart_rate'] // Request access to optional services
+                        acceptAllDevices: true,
+                        optionalServices: ['battery_service', 'heart_rate']
                     });
 
-                    clearTimeout(scanTimeout); // Clear the timeout if a device is found
+                    clearTimeout(scanTimeout);
 
-                    @this.call('updateDevices', [{
+                    @this.call('addDevice', {
                         id: device.id,
                         name: device.name
-                    }]);
+                    });
 
                     bluetoothDevice = device;
                     if (disconnectionListener) {
@@ -82,12 +134,11 @@
                     disconnectionListener = onDisconnected;
                     bluetoothDevice.addEventListener('gattserverdisconnected', disconnectionListener);
 
-                    console.log('Dispositivo Bluetooth encontrado:', device.name || device.id);
+                    console.log('Dispositivo Bluetooth seleccionado:', device.name || device.id);
 
                 } catch (error) {
                     console.error('Error al escanear dispositivos Bluetooth:', error);
                     @this.set('scanActive', false);
-                    clearTimeout(scanTimeout); // Clear the timeout on error
                 }
             });
 
@@ -100,7 +151,6 @@
                     @this.call('deviceDisconnected', { id: deviceIdToDisconnect, name: bluetoothDevice.name });
                 } else {
                     console.log('No hay dispositivo conectado para desconectar o no coincide el ID.');
-                    // If Livewire thinks it's connected but JS doesn't, force state update
                     @this.call('deviceDisconnected', { id: deviceIdToDisconnect, name: bluetoothDevice ? bluetoothDevice.name : 'Unknown' });
                 }
             });
@@ -110,7 +160,7 @@
                 console.log(`Dispositivo Bluetooth ${device.name || device.id} desconectado.`);
                 @this.call('deviceDisconnected', { id: device.id, name: device.name });
                 gattServer = null;
-                bluetoothDevice = null; // Clear the device reference
+                bluetoothDevice = null;
                 if (disconnectionListener) {
                     device.removeEventListener('gattserverdisconnected', disconnectionListener);
                     disconnectionListener = null;
@@ -134,7 +184,6 @@
                              return;
                         }
 
-                        // Re-add event listener if we fetched a new device instance
                         if (disconnectionListener) {
                             bluetoothDevice.removeEventListener('gattserverdisconnected', disconnectionListener);
                         }
@@ -154,31 +203,11 @@
 
                     @this.call('deviceConnected', { id: bluetoothDevice.id, name: bluetoothDevice.name });
 
-                    // Example: Read Battery Service (uncomment and customize as needed)
-                    // const batteryService = await gattServer.getPrimaryService('battery_service');
-                    // const batteryLevelCharacteristic = await batteryService.getCharacteristic('battery_level');
-                    // const batteryLevel = await batteryLevelCharacteristic.readValue();
-                    // console.log('Nivel de batería:', batteryLevel.getUint8(0) + '%');
-
-                    // Example: Read Heart Rate Measurement (uncomment and customize as needed)
-                    // const heartRateService = await gattServer.getPrimaryService('heart_rate');
-                    // const heartRateMeasurementCharacteristic = await heartRateService.getCharacteristic('heart_rate_measurement');
-                    // await heartRateMeasurementCharacteristic.startNotifications();
-                    // heartRateMeasurementCharacteristic.addEventListener('characteristicvaluechanged', (event) => {
-                    //     const value = event.target.value;
-                    //     // Parse heart rate data (refer to Bluetooth GATT specification for details)
-                    //     const heartRate = value.getUint8(1); // Assuming 2nd byte is heart rate value
-                    //     console.log('Frecuencia cardíaca:', heartRate);
-                    //     // You can then send this data back to Livewire if needed
-                    //     // @this.call('updateHeartRate', heartRate);
-                    // });
-
                 } catch (error) {
                     console.error('Error al conectar o leer del dispositivo Bluetooth:', error);
                     alert('Error al conectar con el dispositivo Bluetooth: ' + error.message);
-                    gattServer = null; // Ensure gattServer is null on error
+                    gattServer = null;
                     if (bluetoothDevice) {
-                        // If connection failed, remove listener to avoid multiple onDisconnected calls
                         bluetoothDevice.removeEventListener('gattserverdisconnected', disconnectionListener);
                         disconnectionListener = null;
                     }
@@ -188,3 +217,5 @@
         });
     </script>
 </div>
+
+

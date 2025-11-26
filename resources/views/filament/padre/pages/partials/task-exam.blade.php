@@ -10,9 +10,7 @@
             @if ($task->game_link)
                 <div class="mt-4">
                     <x-filament::button
-                        tag="a"
-                        href="{{ $task->game_link }}"
-                        target="_blank"
+                        wire:click="playGame({{ $task->id }})"
                         icon="heroicon-o-play"
                     >
                         Jugar

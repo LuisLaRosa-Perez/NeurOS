@@ -9,6 +9,7 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Notifications\Notification;
 use Filament\Pages\Auth\Login as BaseLogin;
 use Illuminate\Validation\ValidationException;
+use App\Http\Responses\Auth\RedirectToLoginResponse;
 
 class CustomLogin extends BaseLogin
 {
@@ -48,13 +49,26 @@ class CustomLogin extends BaseLogin
         ) {
             Filament::auth()->logout();
 
+            // Find the user's primary role
             $role = $user->getRoleNames()->first();
-            $roleName = $role ? ucfirst($role) : 'desconocido';
-            $panelId = strtolower($roleName);
+            if (!$role) {
+                throw ValidationException::withMessages([
+                    'data.email' => 'No se pudo determinar tu rol de usuario.',
+                ]);
+            }
+            $panelId = strtolower($role);
 
-            throw ValidationException::withMessages([
-                'data.email' => "Rol incorrecto. Eres {$roleName}. Intenta en la ruta /{$panelId}/login",
-            ]);
+            // Find the target panel
+            try {
+                $targetPanel = Filament::getPanel($panelId);
+
+                return new RedirectToLoginResponse($targetPanel->getLoginUrl());
+            } catch (\Exception $e) {
+                 // Fallback: if a panel isn't found for their role, show an error
+                throw ValidationException::withMessages([
+                    'data.email' => "No tienes acceso a este panel y no se encontró un panel para tu rol.",
+                ]);
+            }
         }
 
         session()->regenerate();

@@ -10,12 +10,11 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationItem; // Importar NavigationItem
+use Filament\Navigation\NavigationItem;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
-use Filament\Widgets;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -42,19 +41,18 @@ class PadrePanelProvider extends PanelProvider
             ->navigationItems([
                 NavigationItem::make('Comprensión Lectora')
                     ->url(fn (): string => Tareas::getUrl(['category' => 'compresion_lectora']))
-                    ->icon('heroicon-o-book-open'),
+                    ->icon('heroicon-o-book-open')
+                    ->group('Actividades Educativas'),
                 NavigationItem::make('Matemáticas')
                     ->url(fn (): string => Tareas::getUrl(['category' => 'matematicas']))
-                    ->icon('heroicon-o-calculator'),
+                    ->icon('heroicon-o-calculator')
+                    ->group('Actividades Educativas'),
                 NavigationItem::make('Juegos de Recreación')
                     ->url(fn (): string => Tareas::getUrl(['category' => 'recreacion']))
-                    ->icon('heroicon-o-puzzle-piece'),
+                    ->icon('heroicon-o-puzzle-piece')
+                    ->group('Actividades Educativas'),
             ])
             ->discoverWidgets(in: app_path('Filament/Padre/Widgets'), for: 'App\\Filament\\Padre\\Widgets')
-            ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
-            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

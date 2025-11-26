@@ -9,6 +9,7 @@ use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use App\Filament\Pages\CustomDashboard; // Use our custom dashboard page
+use Illuminate\Support\Facades\Blade;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
@@ -26,8 +27,8 @@ class AdminPanelProvider extends PanelProvider
     {
         return $panel
             ->default()
-            ->id('administrador')
-            ->path('administrador')
+            ->id('admin')
+            ->path('admin')
             ->login(CustomLogin::class)
             ->colors([
                 'primary' => Color::Amber,
@@ -58,5 +59,18 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ]);
+    }
+
+    public function boot(): void
+    {
+        \Filament\Support\Facades\FilamentView::registerRenderHook(
+            \Filament\View\PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+            function (): string {
+                if (\Filament\Facades\Filament::getCurrentPanel()->getId() === 'admin') {
+                    return Blade::render('@include(\'filament.admin.auth.login-links\')');
+                }
+                return '';
+            }
+        );
     }
 }

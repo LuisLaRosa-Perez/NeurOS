@@ -24,6 +24,33 @@ class Tareas extends Page
     public array $answers = [];
     public ?string $category = null; // Propiedad para almacenar la categoría de la URL
     public ?Task $selectedTask = null; // Propiedad para la tarea seleccionada
+    public ?Task $gameTask = null; // Propiedad para la tarea de juego seleccionada
+    public array $timeInputs = []; // Vinculado a los campos de tiempo para cada juego
+    public ?int $timeRemaining = null; // Tiempo en segundos para el contador
+
+    public function playGame(int $taskId): void
+    {
+        $timeLimitMinutes = (int) ($this->timeInputs[$taskId] ?? 0);
+
+        if ($timeLimitMinutes <= 0) {
+            Notification::make()
+                ->title('Tiempo Inválido')
+                ->body('Por favor, establece un tiempo de juego mayor a 0 minutos.')
+                ->warning()
+                ->send();
+            return;
+        }
+        
+        $this->timeRemaining = $timeLimitMinutes * 60;
+        $this->gameTask = Task::find($taskId);
+    }
+
+    public function stopPlaying(): void
+    {
+        $this->gameTask = null;
+        $this->timeRemaining = null;
+        $this->timeInputs = [];
+    }
 
     public function mount(): void
     {
@@ -65,6 +92,7 @@ class Tareas extends Page
     public function deselectTask(): void
     {
         $this->selectedTask = null;
+        $this->gameTask = null; // Asegurarse de que la vista de juego también se cierre
     }
 
     public function getTitle(): string
@@ -147,6 +175,7 @@ class Tareas extends Page
 
         // Después de enviar la tarea, deseleccionar la tarea y actualizar la lista
         $this->selectedTask = null;
+        $this->gameTask = null; // Asegurarse de que la vista de juego también se cierre
         $this->answers = []; // Limpiar respuestas
         // No es necesario llamar a mount() directamente, Livewire se encargará de re-renderizar
     }

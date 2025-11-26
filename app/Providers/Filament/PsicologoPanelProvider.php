@@ -7,6 +7,7 @@ use App\Http\Middleware\RedirectIfCannotAccessPanel;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Illuminate\Support\Facades\Blade;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -62,5 +63,18 @@ class PsicologoPanelProvider extends PanelProvider
             ->authMiddleware([
                 \App\Http\Middleware\PsicologoAuthMiddleware::class,
             ]);
+    }
+
+    public function boot(): void
+    {
+        \Filament\Support\Facades\FilamentView::registerRenderHook(
+            \Filament\View\PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
+            function (): string {
+                if (\Filament\Facades\Filament::getCurrentPanel()->getId() === 'psicologo') {
+                    return Blade::render('@include(\'filament.psicologo.auth.login-links\')');
+                }
+                return '';
+            }
+        );
     }
 }
