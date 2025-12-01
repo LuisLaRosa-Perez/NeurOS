@@ -7,11 +7,11 @@ use Illuminate\Support\Facades\Http;
 class OllamaService
 {
     protected string $baseUrl;
-    protected string $model = 'gemma:2b'; // Default Ollama model
+    protected string $model = 'llama3.1:8b'; // Default Ollama model
 
     public function __construct()
     {
-        $this->baseUrl = config('services.ollama.base_url');
+        $this->baseUrl = env('OLLAMA_BASE_URL', 'http://localhost:11434');
 
         if (empty($this->baseUrl)) {
             throw new \Exception('Ollama Base URL not configured.');
