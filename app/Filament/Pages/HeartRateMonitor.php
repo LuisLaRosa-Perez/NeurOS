@@ -6,7 +6,7 @@ use Filament\Pages\Page;
 
 class HeartRateMonitor extends Page
 {
-    protected static ?string $navigationIcon = 'heroicon-o-clock';
+    protected static ?string $navigationIcon = 'heroicon-o-device-tablet';
 
     protected static ?string $navigationLabel = 'Pulseras Activas';
 
