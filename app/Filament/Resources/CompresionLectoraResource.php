@@ -13,6 +13,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\RequestException;
 
 class CompresionLectoraResource extends Resource
 {
@@ -46,8 +48,8 @@ class CompresionLectoraResource extends Resource
                                 9 => '9 años',
                                 10 => '10 años',
                             ])
-                            ->required()
                             ->live()
+                            ->dehydrated(false) // Added to prevent validation issues as it's not saved to model
                             ->afterStateUpdated(function (Forms\Set $set) {
                                 $set('topics', null); // Clear topics when age changes
                                 $set('selected_topic', null); // Clear selected topic
@@ -109,11 +111,11 @@ class CompresionLectoraResource extends Resource
                                 ->label('Generar Tarea')
                                 ->icon('heroicon-o-document-text')
                                 ->color('success')
-                                ->action(function (Forms\Get $get, \Livewire\Component $livewire) {
+                                ->action(function (Forms\Get $get, Forms\Set $set, OllamaService $ollamaService, \Livewire\Component $livewire) {
                                     set_time_limit(300); // Set PHP execution time limit to 5 minutes
                                     $age = $get('age');
                                     $topic = $get('custom_topic') ?: $get('selected_topic');
-                                    $userId = Auth::id();
+                                    $userId = Auth::id(); // Auth::id() is not used in synchronous generation, but let's keep it here for now if needed elsewhere
 
                                     if (!$age || !$topic) {
                                         \Filament\Notifications\Notification::make()
@@ -124,8 +126,7 @@ class CompresionLectoraResource extends Resource
                                         return;
                                     }
 
-                                    // Set generating state
-                                    $livewire->isGenerating = true;
+                                    $livewire->isGenerating = true; // Set generating state here
 
                                     // Perform synchronous task generation
                                     try {
@@ -153,26 +154,40 @@ class CompresionLectoraResource extends Resource
                                         } else {
                                             \Filament\Notifications\Notification::make()
                                                 ->title('Error de Generación')
-                                                ->body('No se pudo generar la tarea. Inténtalo de nuevo.')
+                                                ->body('No se pudo generar la tarea. El servicio Ollama no devolvió datos válidos.')
                                                 ->danger()
                                                 ->send();
                                         }
-                                    } catch (\Exception $e) {
+                                    } catch (ConnectException $e) {
                                         \Filament\Notifications\Notification::make()
-                                            ->title('Error Inesperado')
-                                            ->body('Ocurrió un error al generar la tarea: ' . $e->getMessage())
+                                            ->title('Error de Conexión Ollama')
+                                            ->body('No se pudo conectar con el servicio Ollama. Verifica tu conexión de red o que el servicio Ollama esté funcionando. Esto puede deberse a una conexión lenta o al servicio no disponible. Detalles: ' . $e->getMessage())
                                             ->danger()
                                             ->send();
-                                        \Log::error('Synchronous task generation error: ' . $e->getMessage());
-                                    } finally {
-                                        $livewire->isGenerating = false;
-                                    }
-                                })
-                                ->visible(fn (Forms\Get $get) => filled($get('selected_topic')) || filled($get('custom_topic')))
-                                ->disabled(fn (\Livewire\Component $livewire) => $livewire->isGenerating ?? false),
-                        ])->columnSpanFull(),
-                    ]),
-
+                                        \Log::error('Ollama connection error: ' . $e->getMessage());
+                                    } catch (RequestException $e) {
+                                        $errorMessage = $e->getResponse() ? $e->getResponse()->getBody()->getContents() : $e->getMessage();
+                                        \Filament\Notifications\Notification::make()
+                                            ->title('Error del Servicio Ollama')
+                                            ->body('El servicio Ollama respondió con un error (' . $e->getCode() . '). Esto puede indicar un problema en el servidor de Ollama o en la solicitud. Detalles: ' . $errorMessage)
+                                            ->danger()
+                                            ->send();
+                                        \Log::error('Ollama request error: ' . $errorMessage);
+                                    } catch (\Exception $e) { // Generic catch for other errors
+                                        \Filament\Notifications\Notification::make()
+                                            ->title('Error Inesperado')
+                                            ->body('Ocurrió un error al generar la tarea. Detalles: ' . $e->getMessage())
+                                            ->danger()
+                                            ->send();
+                                        \Log::error('Synchronous task generation generic error: ' . $e->getMessage());
+                                                                        } finally {
+                                                                            $livewire->isGenerating = false;
+                                                                        }
+                                                                            }) // This closes the action closure, and then the Action::make()
+                                                                            ->visible(fn (Forms\Get $get) => filled($get('selected_topic')) || filled($get('custom_topic')))
+                                                                            ->disabled(fn (\Livewire\Component $livewire) => $livewire->isGenerating ?? false),
+                                                                ])->columnSpanFull(),
+                    ]), // Cierre del schema de la Sección
                 Forms\Components\TextInput::make('name')
                     ->label('Título de la Tarea')
                     ->required()
@@ -311,7 +326,8 @@ class CompresionLectoraResource extends Resource
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('created_at', 'desc');
     }
 
     public static function getRelations(): array

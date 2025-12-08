@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
+use App\Models\OllamaRequestLog; // Added
+use Illuminate\Support\Facades\Auth; // Added
 
 class OllamaService
 {
@@ -24,27 +26,51 @@ class OllamaService
      * @param array $messages
      * @param string|null $model
      * @param float $temperature
+     * @param array|null $context // Added context parameter
      * @return array|null
      */
-    protected function makeRequest(array $messages, ?string $model = null, float $temperature = 0.7): ?array
+    protected function makeRequest(array $messages, ?string $model = null, float $temperature = 0.7, ?array $context = null): ?array
     {
         $model = $model ?? $this->model; // Use provided model or default
 
-        $response = Http::timeout(300)->post("{$this->baseUrl}/api/chat", [ // Ollama chat endpoint
-            'model' => $model,
-            'messages' => $messages,
-            'options' => [
-                'temperature' => $temperature,
-            ],
-            'stream' => false,
-        ]);
+        $log = new OllamaRequestLog();
+        $log->user_id = Auth::id(); // Log the authenticated user
+        $log->model_name = $model;
+        $log->prompt = json_encode($messages); // Store the full prompt
+        $log->context = $context; // Store the context
+        $log->status = 'pending'; // Initial status
+        $log->save();
 
-        if ($response->successful()) {
-            return $response->json();
+        try {
+            $response = Http::timeout(300)->post("{$this->baseUrl}/api/chat", [ // Ollama chat endpoint
+                'model' => $model,
+                'messages' => $messages,
+                'options' => [
+                    'temperature' => $temperature,
+                ],
+                'stream' => false,
+            ]);
+
+            if ($response->successful()) {
+                $log->response = $response->body();
+                $log->status = 'success';
+                $log->save();
+                return $response->json();
+            }
+
+            $log->response = $response->body();
+            $log->status = 'failed';
+            $log->save();
+            \Log::error('Ollama API Error: ' . $response->body());
+            return null;
+
+        } catch (\Exception $e) {
+            $log->response = json_encode(['error' => $e->getMessage()]);
+            $log->status = 'failed';
+            $log->save();
+            \Log::error('Ollama API Exception: ' . $e->getMessage());
+            return null;
         }
-
-        \Log::error('Ollama API Error: ' . $response->body());
-        return null;
     }
 
     /**
@@ -64,7 +90,13 @@ class OllamaService
             ['role' => 'user', 'content' => $prompt],
         ];
 
-        $result = $this->makeRequest($messages, null, 0.8); // Use default model
+        $context = [
+            'type' => 'generate_topics',
+            'age' => $age,
+            'custom_prompt' => $customPrompt,
+        ];
+
+        $result = $this->makeRequest($messages, null, 0.8, $context); // Pass context
 
         if ($result && isset($result['message']['content'])) { // Ollama response structure
             $topicsString = trim($result['message']['content']);
@@ -100,12 +132,18 @@ class OllamaService
                                . "Asegúrate de que el texto sea atractivo y las preguntas se relacionen directamente con el texto y sean apropiadas para la edad.";
         
                 $prompt = $customPrompt ?? $defaultPrompt;    
-            $messages = [
-                ['role' => 'system', 'content' => 'Eres un asistente útil que genera tareas de comprensión lectora en español.'],
-                ['role' => 'user', 'content' => $prompt],
-            ];
-    
-            $result = $this->makeRequest($messages, null, 0.7); // Use default model
+                    $messages = [
+                        ['role' => 'system', 'content' => 'Eres un asistente útil que genera tareas de comprensión lectora en español.'],
+                        ['role' => 'user', 'content' => $prompt],
+                    ];
+            
+                    $context = [
+                        'type' => 'generate_task',
+                        'age' => $age,
+                        'topic' => $topic,
+                        'custom_prompt' => $customPrompt,
+                    ];    
+            $result = $this->makeRequest($messages, null, 0.7, $context); // Pass context
     
                         if ($result && isset($result['message']['content'])) {
                             $rawContent = trim($result['message']['content']);

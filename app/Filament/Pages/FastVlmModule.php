@@ -8,6 +8,7 @@ class FastVlmModule extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-eye';
     protected static ?string $navigationLabel = 'Modelo Visual';
+    protected static ?string $navigationGroup = 'Modelos de Aprendizajes';
 
     protected static string $view = 'filament.pages.fast-vlm-module';
 }

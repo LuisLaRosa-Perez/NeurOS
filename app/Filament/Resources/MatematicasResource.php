@@ -11,6 +11,8 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use App\Services\OllamaService;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\RequestException;
 
 class MatematicasResource extends Resource
 {
@@ -44,8 +46,8 @@ class MatematicasResource extends Resource
                                 9 => '9 años',
                                 10 => '10 años',
                             ])
-                            ->required()
                             ->live()
+                            ->dehydrated(false) // Added to prevent validation issues as it's not saved to model
                             ->afterStateUpdated(function (Forms\Set $set) {
                                 $set('topics', null); // Clear topics when age changes
                                 $set('selected_topic', null); // Clear selected topic
@@ -109,10 +111,11 @@ class MatematicasResource extends Resource
                                 ->label('Generar Tarea')
                                 ->icon('heroicon-o-document-text')
                                 ->color('success')
-                                ->action(function (Forms\Get $get, Forms\Set $set, OllamaService $ollamaService) {
+                                ->action(function (Forms\Get $get, Forms\Set $set, OllamaService $ollamaService, \Livewire\Component $livewire) {
                                     set_time_limit(300); // Increase execution time for AI task generation
                                     $age = $get('age');
                                     $topic = $get('custom_topic') ?: $get('selected_topic');
+                                    $livewire->isGenerating = true; // Set generating state here
 
                                     if (!$age || !$topic) {
                                         \Filament\Notifications\Notification::make()
@@ -140,36 +143,64 @@ class MatematicasResource extends Resource
                                                 . "}\n\n"
                                                 . "Asegúrate de que los problemas sean atractivos y apropiados para la edad.";
 
-                                    $taskData = $ollamaService->generateTask($age, $topic, $mathPrompt); // Pass custom prompt
+                                    try {
+                                        $taskData = $ollamaService->generateTask($age, $topic, $mathPrompt); // Pass custom prompt
 
-                                    if ($taskData) {
-                                        $set('name', "Tarea de Matemáticas: " . $topic);
-                                        $set('description', $taskData['text']);
-                                        // Map questions to the repeater structure
-                                        $formattedQuestions = [];
-                                        foreach ($taskData['questions'] as $q) {
-                                            $formattedQuestions[] = [
-                                                'question' => $q['question'],
-                                                'alternatives' => array_map(fn($alt) => ['alternative' => $alt], $q['alternatives']),
-                                                'correct_answer' => $q['correct_answer'],
-                                            ];
+                                        if ($taskData) {
+                                            $set('name', "Tarea de Matemáticas: " . ($taskData['topic'] ?? $topic)); // Use generated topic or original
+                                            $set('description', $taskData['text']);
+                                            // Map questions to the repeater structure
+                                            $formattedQuestions = [];
+                                            foreach ($taskData['questions'] as $q) {
+                                                $formattedQuestions[] = [
+                                                    'question' => $q['question'],
+                                                    'alternatives' => array_map(fn($alt) => ['alternative' => $alt], $q['alternatives']),
+                                                    'correct_answer' => $q['correct_answer'],
+                                                ];
+                                            }
+                                            $set('questions', $formattedQuestions);
+                                            \Filament\Notifications\Notification::make()
+                                                ->title('Tarea Generada')
+                                                ->body('Los problemas y las preguntas se han generado y rellenado en el formulario.')
+                                                ->success()
+                                                ->send();
+                                        } else {
+                                            \Filament\Notifications\Notification::make()
+                                                ->title('Error de Generación')
+                                                ->body('No se pudo generar la tarea. El servicio Ollama no devolvió datos válidos.')
+                                                ->danger()
+                                                ->send();
                                         }
-                                        $set('questions', $formattedQuestions);
+                                    } catch (ConnectException $e) {
                                         \Filament\Notifications\Notification::make()
-                                            ->title('Tarea Generada')
-                                            ->body('Los problemas y las preguntas se han generado y rellenado en el formulario.')
-                                            ->success()
-                                            ->send();
-                                    } else {
-                                        \Filament\Notifications\Notification::make()
-                                            ->title('Error')
-                                            ->body('No se pudo generar la tarea. Inténtalo de nuevo.')
+                                            ->title('Error de Conexión Ollama')
+                                            ->body('No se pudo conectar con el servicio Ollama. Verifica tu conexión de red o que el servicio Ollama esté funcionando. Esto puede deberse a una conexión lenta o al servicio no disponible. Detalles: ' . $e->getMessage())
                                             ->danger()
                                             ->send();
+                                        \Log::error('Ollama connection error: ' . $e->getMessage());
+                                    } catch (RequestException $e) {
+                                        $errorMessage = $e->getResponse() ? $e->getResponse()->getBody()->getContents() : $e->getMessage();
+                                        \Filament\Notifications\Notification::make()
+                                            ->title('Error del Servicio Ollama')
+                                            ->body('El servicio Ollama respondió con un error (' . $e->getCode() . '). Esto puede indicar un problema en el servidor de Ollama o en la solicitud. Detalles: ' . $errorMessage)
+                                            ->danger()
+                                            ->send();
+                                        \Log::error('Ollama request error: ' . $errorMessage);
+                                    } catch (\Exception $e) { // Generic catch for other errors
+                                        \Filament\Notifications\Notification::make()
+                                            ->title('Error Inesperado')
+                                            ->body('Ocurrió un error al generar la tarea. Detalles: ' . $e->getMessage())
+                                            ->danger()
+                                            ->send();
+                                        \Log::error('Synchronous task generation generic error: ' . $e->getMessage());
+                                    } finally {
+                                        // Ensure isGenerating is reset even if an error occurs
+                                        $livewire->isGenerating = false;
                                     }
-                                })
-                                ->visible(fn (Forms\Get $get) => filled($get('selected_topic')) || filled($get('custom_topic'))),
-                        ])->columnSpanFull(),
+                                }) // This closes the action closure.
+                                ->visible(fn (Forms\Get $get) => filled($get('selected_topic')) || filled($get('custom_topic')))
+                                ->disabled(fn (\Livewire\Component $livewire) => $livewire->isGenerating ?? false),
+                            ])->columnSpanFull(),
                     ]),
 
                 Forms\Components\TextInput::make('name')

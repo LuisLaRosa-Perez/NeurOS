@@ -9,6 +9,7 @@ class HeartRateMonitor extends Page
     protected static ?string $navigationIcon = 'heroicon-o-device-tablet';
 
     protected static ?string $navigationLabel = 'Pulseras Activas';
+    protected static ?string $navigationGroup = 'Modelos de Aprendizajes';
 
     protected static ?string $title = 'Escanear Dispositivos';
 
