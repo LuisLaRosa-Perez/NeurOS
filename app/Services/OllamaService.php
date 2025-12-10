@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Auth; // Added
 class OllamaService
 {
     protected string $baseUrl;
-    protected string $model = 'qwen2.5:1.5b'; // Default Ollama model
+    protected string $model = 'gemma:2b'; // Default Ollama model
 
     public function __construct()
     {
@@ -115,25 +115,28 @@ class OllamaService
      */
             public function generateTask(int $age, string $topic, ?string $customPrompt = null): ?array
             {
-                $defaultPrompt = "Genera un texto de comprensión lectora y 3-5 preguntas para un niño de {$age} años sobre el tema: '{$topic}'.\n"
-                               . "Para cada pregunta, proporciona 4 alternativas y la respuesta correcta. La respuesta debe estar íntegramente en español.\n\n"
-                               . "Formatea la salida estrictamente como un objeto JSON con las siguientes claves:\n"
+                // TEMPORARY: Simplified prompt for debugging purposes, but more insistent on JSON
+                $defaultPrompt = "Genera un texto muy corto sobre '{$topic}' para un niño de {$age} años. Luego, crea una única pregunta de comprensión con 4 alternativas y la respuesta correcta. "
+                               . "Tu respuesta DEBE ser SOLAMENTE el objeto JSON que se describe a continuación, SIN NINGÚN TEXTO INTRODUCTORIO NI EXPLICACIÓN. "
+                               . "El JSON debe tener la siguiente estructura estricta:\n"
+                               . "```json\n"
                                . "{\n"
                                . "  \"text\": \"[El texto de lectura aquí]\",\n"
                                . "  \"questions\": [\n"
                                . "    {\n"
-                               . "      \"question\": \"[Pregunta 1]\",\n"
+                               . "      \"question\": \"[Pregunta aquí]\",\n"
                                . "      \"alternatives\": [\"[Alternativa A]\", \"[Alternativa B]\", \"[Alternativa C]\", \"[Alternativa D]\"],\n"
                                . "      \"correct_answer\": \"[Alternativa Correcta]\"\n"
-                               . "    },\n"
-                               . "    // ... más preguntas\n"
+                               . "    }\n"
                                . "  ]\n"
-                               . "}\n\n"
-                               . "Asegúrate de que el texto sea atractivo y las preguntas se relacionen directamente con el texto y sean apropiadas para la edad.";
+                               . "}\n"
+                               . "```\n"
+                               . "Asegúrate de que el texto y la pregunta sean apropiados para un niño de {$age} años.";
         
-                $prompt = $customPrompt ?? $defaultPrompt;    
+                $prompt = $customPrompt ?? $defaultPrompt;
+            
                     $messages = [
-                        ['role' => 'system', 'content' => 'Eres un asistente útil que genera tareas de comprensión lectora en español.'],
+                        ['role' => 'system', 'content' => 'Eres un asistente útil que genera tareas de comprensión lectora en español y SIEMPRE responde en formato JSON.'],
                         ['role' => 'user', 'content' => $prompt],
                     ];
             
@@ -142,7 +145,7 @@ class OllamaService
                         'age' => $age,
                         'topic' => $topic,
                         'custom_prompt' => $customPrompt,
-                    ];    
+                    ];
             $result = $this->makeRequest($messages, null, 0.7, $context); // Pass context
     
                         if ($result && isset($result['message']['content'])) {
@@ -177,6 +180,6 @@ class OllamaService
                             } else {
                                 \Log::error('Ollama API: Failed to parse JSON response or missing keys. Response: ' . $jsonContent);
                             }
-                        }    
+                        }
             return null;
         }}
