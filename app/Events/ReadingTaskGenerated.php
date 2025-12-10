@@ -10,22 +10,24 @@ use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
+use App\Models\Task; // Import the Task model
+
 class ReadingTaskGenerated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    public $taskData;
+    public Task $task; // Change to Task model
     public $userId;
 
     /**
      * Create a new event instance.
      *
-     * @param mixed $taskData
+     * @param \App\Models\Task $task // Type hint changed
      * @param int $userId
      */
-    public function __construct($taskData, $userId)
+    public function __construct(Task $task, int $userId) // Type hint changed
     {
-        $this->taskData = $taskData;
+        $this->task = $task; // Assignment changed
         $this->userId = $userId;
     }
 

@@ -110,11 +110,10 @@ class CompresionLectoraResource extends Resource
                                 ->label('Generar Tarea')
                                 ->icon('heroicon-o-document-text')
                                 ->color('success')
-                                ->action(function (Forms\Get $get, Forms\Set $set, OllamaService $ollamaService, \Livewire\Component $livewire) {
-                                    set_time_limit(300); // Set PHP execution time limit to 5 minutes
+                                ->action(function (Forms\Get $get, Forms\Set $set, \Livewire\Component $livewire) {
                                     $age = $get('age');
                                     $topic = $get('custom_topic') ?: $get('selected_topic');
-                                    $userId = Auth::id(); // Auth::id() is not used in synchronous generation, but let's keep it here for now if needed elsewhere
+                                    $userId = Auth::id();
 
                                     if (!$age || !$topic) {
                                         \Filament\Notifications\Notification::make()
@@ -125,63 +124,14 @@ class CompresionLectoraResource extends Resource
                                         return;
                                     }
 
-                                    $livewire->isGenerating = true; // Set generating state here
+                                    $livewire->isGenerating = true; // Set generating state
+                                    \App\Jobs\GenerateReadingTask::dispatch($age, $topic, $userId); // Dispatch job
 
-                                    // Perform synchronous task generation
-                                    try {
-                                        $ollamaService = app(OllamaService::class); // Resolve OllamaService
-                                        $taskData = $ollamaService->generateTask($age, $topic);
-
-                                        if ($taskData) {
-                                            $livewire->form->fill([
-                                                'name' => "Tarea de Comprensión Lectora: " . ($taskData['topic'] ?? $topic), // Use generated topic or original
-                                                'description' => $taskData['text'],
-                                                'questions' => array_map(function ($q) {
-                                                    return [
-                                                        'question' => $q['question'],
-                                                        'alternatives' => array_map(fn($alt) => ['alternative' => $alt], $q['alternatives']),
-                                                        'correct_answer' => $q['correct_answer'],
-                                                    ];
-                                                }, $taskData['questions']),
-                                            ]);
-
-                                            \Filament\Notifications\Notification::make()
-                                                ->title('Tarea Generada')
-                                                ->body('El texto y las preguntas se han generado y rellenado en el formulario.')
-                                                ->success()
-                                                ->send();
-                                        } else {
-                                            \Filament\Notifications\Notification::make()
-                                                ->title('Error de Generación')
-                                                ->body('No se pudo generar la tarea. El servicio Ollama no devolvió datos válidos.')
-                                                ->danger()
-                                                ->send();
-                                        }
-                                    } catch (ConnectException $e) {
-                                        \Filament\Notifications\Notification::make()
-                                            ->title('Error de Conexión Ollama')
-                                            ->body('No se pudo conectar con el servicio Ollama. Verifica tu conexión de red o que el servicio Ollama esté funcionando. Esto puede deberse a una conexión lenta o al servicio no disponible. Detalles: ' . $e->getMessage())
-                                            ->danger()
-                                            ->send();
-                                        \Log::error('Ollama connection error: ' . $e->getMessage());
-                                    } catch (RequestException $e) {
-                                        $errorMessage = $e->getResponse() ? $e->getResponse()->getBody()->getContents() : $e->getMessage();
-                                        \Filament\Notifications\Notification::make()
-                                            ->title('Error del Servicio Ollama')
-                                            ->body('El servicio Ollama respondió con un error (' . $e->getCode() . '). Esto puede indicar un problema en el servidor de Ollama o en la solicitud. Detalles: ' . $errorMessage)
-                                            ->danger()
-                                            ->send();
-                                        \Log::error('Ollama request error: ' . $errorMessage);
-                                    } catch (\Exception $e) { // Generic catch for other errors
-                                        \Filament\Notifications\Notification::make()
-                                            ->title('Error Inesperado')
-                                            ->body('Ocurrió un error al generar la tarea. Detalles: ' . $e->getMessage())
-                                            ->danger()
-                                            ->send();
-                                        \Log::error('Synchronous task generation generic error: ' . $e->getMessage());
-                                    } finally {
-                                        $livewire->isGenerating = false;
-                                    }
+                                    \Filament\Notifications\Notification::make()
+                                        ->title('Generación de Tarea Iniciada')
+                                        ->body('La tarea de comprensión lectora se está generando en segundo plano. Recibirás una notificación cuando esté lista.')
+                                        ->info()
+                                        ->send();
                                 }) // This closes the action closure.
                                 ->visible(fn (Forms\Get $get) => filled($get('selected_topic')) || filled($get('custom_topic')))
                                 ->disabled(fn (\Livewire\Component $livewire) => $livewire->isGenerating ?? false),
@@ -236,7 +186,13 @@ class CompresionLectoraResource extends Resource
                             ->live() // Make it live to update options when alternatives change
                             ->columnSpanFull(),
                     ])
-                    ->itemLabel(fn (array $state): ?string => $state['question'] ?? null)
+                    ->itemLabel(function (array $state): ?string {
+    $question = $state['question'] ?? null;
+    if (is_array($question)) {
+        return json_encode($question); // Return a string representation of the array
+    }
+    return (string) $question; // Ensure it's a string or null
+})
                     ->defaultItems(3)
                     ->minItems(1)
                     ->columnSpanFull(),

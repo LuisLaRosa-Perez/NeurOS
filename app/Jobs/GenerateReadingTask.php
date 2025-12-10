@@ -47,8 +47,17 @@ class GenerateReadingTask implements ShouldQueue
             $taskData = $ollamaService->generateTask($this->age, $this->topic, $this->customPrompt); // Modified
 
             if ($taskData) {
-                // Fire an event to notify the user that the task is ready
-                ReadingTaskGenerated::dispatch($taskData, $this->userId);
+                // Create a new Task record
+                $task = new \App\Models\Task();
+                $task->name = "Tarea de Comprensión Lectora: " . ($taskData['topic'] ?? $this->topic); // Use generated topic or original
+                $task->description = $taskData['text'];
+                $task->questions = $taskData['questions'];
+                $task->category = 'compresion_lectora'; // Hardcode category as per resource
+                $task->is_published = false; // Tasks are initially not published
+                $task->save();
+
+                // Fire an event to notify the user that the task is ready, passing the Task model
+                ReadingTaskGenerated::dispatch($task, $this->userId);
             } else {
                 Log::error('Failed to generate task for user ' . $this->userId . ' - OllamaService returned no data.');
                 ReadingTaskFailed::dispatch($this->userId, 'OllamaService returned no data.');
